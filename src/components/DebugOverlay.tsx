@@ -153,6 +153,12 @@ export default function DebugOverlay() {
                             <div className="h-full bg-cyan-400/60 transition-all duration-100" style={{ width: `${progress}%` }} />
                         </div>
                     </div>
+                    {/* Wireframe visuals in BIOS */}
+                    <div className="flex-none flex items-center justify-center gap-4 sm:gap-8 py-2 sm:py-4">
+                        <img src="/images/wireframe-reactor.png" alt="" className="w-12 sm:w-20 opacity-40 animate-[spin_12s_linear_infinite]" style={{ mixBlendMode: 'lighten' }} draggable={false} />
+                        <img src="/images/wireframe-suit.png" alt="" className="w-24 sm:w-40 opacity-50" style={{ mixBlendMode: 'lighten' }} draggable={false} />
+                        <img src="/images/wireframe-reactor.png" alt="" className="w-12 sm:w-20 opacity-40 animate-[spin_12s_linear_infinite_reverse]" style={{ mixBlendMode: 'lighten' }} draggable={false} />
+                    </div>
                 </div>
             )}
 
@@ -296,6 +302,21 @@ export default function DebugOverlay() {
 
             {/* Corner accents */}
             <CornerAccents delay="0.6s" />
+
+            {/* Wireframe bust — desktop only, bottom-left, above labels */}
+            <div className="absolute bottom-12 left-3 sm:left-5 animate-hud-build hidden sm:block" style={{ animationDelay: '2.4s', animationDuration: '0.6s', opacity: 0, animationFillMode: 'forwards' }}>
+                <img src="/images/wireframe-bust.png" alt="" className="w-28 md:w-36 opacity-30 drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" style={{ mixBlendMode: 'lighten' }} draggable={false} />
+            </div>
+
+            {/* Wireframe helmet — desktop only, bottom-right, above NET label */}
+            <div className="absolute bottom-12 right-3 sm:right-5 animate-hud-build hidden sm:block" style={{ animationDelay: '2.6s', animationDuration: '0.6s', opacity: 0, animationFillMode: 'forwards' }}>
+                <img src="/images/wireframe-helmet.png" alt="" className="w-24 md:w-32 opacity-25 drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" style={{ mixBlendMode: 'lighten' }} draggable={false} />
+            </div>
+
+            {/* Wireframe reactor — desktop only, small, near bottom center */}
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 animate-hud-build hidden sm:block" style={{ animationDelay: '2.8s', animationDuration: '0.6s', opacity: 0, animationFillMode: 'forwards' }}>
+                <img src="/images/wireframe-reactor.png" alt="" className="w-12 md:w-16 opacity-15 animate-[spin_20s_linear_infinite]" style={{ mixBlendMode: 'lighten' }} draggable={false} />
+            </div>
 
             {/* Global Dynamic Reticle */}
             {reticleEnabled && (
