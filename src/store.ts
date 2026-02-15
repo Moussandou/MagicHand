@@ -4,7 +4,9 @@ import { Technique, HandFrame, FeaturesFrame } from '@/core/types';
 type AppState = {
     activeTechniques: string[];
     debugMode: boolean;
+    reticleEnabled: boolean;
     toggleDebug: () => void;
+    toggleReticle: () => void;
     toggleTechnique: (id: string) => void;
     // Debug info
     latestFrame: HandFrame | null;
@@ -18,7 +20,9 @@ type AppState = {
 export const useAppStore = create<AppState>((set) => ({
     activeTechniques: [],
     debugMode: true,
+    reticleEnabled: true,
     toggleDebug: () => set((state) => ({ debugMode: !state.debugMode })),
+    toggleReticle: () => set((state) => ({ reticleEnabled: !state.reticleEnabled })),
     toggleTechnique: (id) =>
         set((state) => ({
             activeTechniques: state.activeTechniques.includes(id)

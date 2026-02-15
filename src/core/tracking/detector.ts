@@ -1,6 +1,7 @@
-import { HandLandmarker, FilesetResolver, HandLandmarkerResult } from '@mediapipe/tasks-vision';
+import { HandLandmarker, FaceLandmarker, FilesetResolver, HandLandmarkerResult, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 
 let handLandmarker: HandLandmarker | undefined;
+let faceLandmarker: FaceLandmarker | undefined;
 
 export const createHandLandmarker = async () => {
     if (handLandmarker) return handLandmarker;
@@ -21,13 +22,40 @@ export const createHandLandmarker = async () => {
     return handLandmarker;
 };
 
+export const createFaceLandmarker = async () => {
+    if (faceLandmarker) return faceLandmarker;
+
+    const vision = await FilesetResolver.forVisionTasks('/wasm');
+
+    faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+            modelAssetPath: '/models/face_landmarker.task',
+            delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+    });
+
+    return faceLandmarker;
+};
+
 export const detectHands = (
     video: HTMLVideoElement,
     startTimeMs: number
 ): HandLandmarkerResult | null => {
     if (!handLandmarker) return null;
-    // Ensure video is ready
     if (video.videoWidth === 0 || video.videoHeight === 0) return null;
 
     return handLandmarker.detectForVideo(video, startTimeMs);
+};
+
+export const detectFace = (
+    video: HTMLVideoElement,
+    startTimeMs: number
+): FaceLandmarkerResult | null => {
+    if (!faceLandmarker) return null;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return null;
+
+    return faceLandmarker.detectForVideo(video, startTimeMs);
 };

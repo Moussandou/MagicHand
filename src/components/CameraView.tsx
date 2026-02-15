@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useCamera } from '@/core/camera/camera';
-import { createHandLandmarker, detectHands } from '@/core/tracking/detector';
+import { createHandLandmarker, detectHands, createFaceLandmarker, detectFace } from '@/core/tracking/detector';
 import { extractFeatures } from '@/core/features';
 import { PoseRecognizer, SequenceRecognizer } from '@/core/recognition';
 import { registry } from '@/core/registry';
@@ -52,8 +52,11 @@ export default function CameraView() {
 
         pushLog('Recognizers initialized');
 
-        // Pre-load model
-        createHandLandmarker().then(() => pushLog('MediaPipe Model Loaded'))
+        // Pre-load models
+        Promise.all([
+            createHandLandmarker(),
+            createFaceLandmarker()
+        ]).then(() => pushLog('Tracking Models Loaded'))
             .catch(e => pushLog(`Model Load Error: ${e.message}`));
 
         startCamera().then(() => pushLog('Camera started'));
@@ -62,12 +65,14 @@ export default function CameraView() {
     useEffect(() => {
         let animationFrameId: number;
         let lastVideoTime = -1;
-        // Persistent frame data for rendering
         let lastHandFrame: HandFrame = { t: 0, width: 0, height: 0, hands: [] };
         let lastFeaturesFrame: FeaturesFrame = { t: 0, hands: [] };
+        let cachedCtx: CanvasRenderingContext2D | null = null;
+        let frameNumber = 0;
 
         const loop = async (timestamp: number) => {
             if (!(window as any)._lastComplexTime) (window as any)._lastComplexTime = 0;
+            if (!(window as any)._lastEyeTarget) (window as any)._lastEyeTarget = null;
             animationFrameId = requestAnimationFrame(loop);
 
             // FPS Calc
@@ -103,9 +108,19 @@ export default function CameraView() {
                     } else {
                         hands = [];
                     }
-                } catch (e) {
-                    // Model might not be ready yet
-                }
+                } catch (e) { }
+
+                try {
+                    const faceResult = detectFace(video, timestamp);
+                    if (faceResult && faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
+                        const landmarks = faceResult.faceLandmarks[0];
+                        // Landmark 473 is the right iris center
+                        const eyeCenter = landmarks[473];
+                        (window as any)._lastEyeTarget = { x: eyeCenter.x, y: eyeCenter.y };
+                    } else {
+                        (window as any)._lastEyeTarget = null;
+                    }
+                } catch (e) { }
 
                 // Update Local State
                 lastHandFrame = {
@@ -193,24 +208,26 @@ export default function CameraView() {
                 }
             }
 
-            // 3. RENDER (Always run for smooth FX)
+            // 3. RENDER
             if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
             if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
 
-            const ctx = {
+            if (!cachedCtx) cachedCtx = canvas.getContext('2d');
+            const ctx2d = cachedCtx!;
+
+            const techCtx = {
                 now: timestamp,
                 video,
-                overlay2d: canvas.getContext('2d')!,
+                overlay2d: ctx2d,
                 frame: lastHandFrame,
                 features: lastFeaturesFrame,
                 state: {} as Record<string, unknown>
             };
 
-            engine.update(ctx);
+            engine.update(techCtx);
 
             // DEBUG DRAW
             if (debugMode) {
-                const ctx2d = canvas.getContext('2d')!;
                 const tEnd = performance.now();
                 const frameTime = tEnd - tStart;
 
@@ -229,82 +246,132 @@ export default function CameraView() {
                         cooldownMs: engine.getCooldownRemaining(timestamp),
                         cooldownTotalMs: 1500,
                         lastTechnique: engine.getLastStartedName(),
-                        activeTechIds: engine.getActiveTechniqueIds()
+                        activeTechIds: engine.getActiveTechniqueIds(),
+                        eyeTarget: (window as any)._lastEyeTarget
                     };
                 }
 
-                hands.forEach(h => {
-                    const connections = [
-                        [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
-                        [0, 5], [5, 6], [6, 7], [7, 8], // Index
-                        [0, 9], [9, 10], [10, 11], [11, 12], // Middle
-                        [0, 13], [13, 14], [14, 15], [15, 16], // Ring
-                        [0, 17], [17, 18], [18, 19], [19, 20], // Pinky
-                        [5, 9], [9, 13], [13, 17] // Palm
-                    ];
+                const connections = [
+                    [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
+                    [0, 5], [5, 6], [6, 7], [7, 8], // Index
+                    [0, 9], [9, 10], [10, 11], [11, 12], // Middle
+                    [0, 13], [13, 14], [14, 15], [15, 16], // Ring
+                    [0, 17], [17, 18], [18, 19], [19, 20], // Pinky
+                    [5, 9], [9, 13], [13, 17] // Palm
+                ];
 
-                    // DRAW TARGET BRACKETS
-                    // Calculate bounding box
+                hands.forEach((hand) => { // Rename 'h' to 'hand' to avoid confusion with height
+                    // 1. Calculate Bounding Box
                     let minX = 1, minY = 1, maxX = 0, maxY = 0;
-                    h.landmarks.forEach(p => {
-                        if (p.x < minX) minX = p.x;
-                        if (p.x > maxX) maxX = p.x;
-                        if (p.y < minY) minY = p.y;
-                        if (p.y > maxY) maxY = p.y;
+                    hand.landmarks.forEach(p => {
+                        minX = Math.min(minX, p.x);
+                        minY = Math.min(minY, p.y);
+                        maxX = Math.max(maxX, p.x);
+                        maxY = Math.max(maxY, p.y);
                     });
 
-                    // Add padding
+                    // Pad box
                     const pad = 0.05;
-                    minX = Math.max(0, minX - pad);
-                    minY = Math.max(0, minY - pad);
-                    maxX = Math.min(1, maxX + pad);
-                    maxY = Math.min(1, maxY + pad);
+                    const paddedMinX = Math.max(0, minX - pad);
+                    const paddedMinY = Math.max(0, minY - pad);
+                    const paddedMaxX = Math.min(1, maxX + pad);
+                    const paddedMaxY = Math.min(1, maxY + pad);
 
-                    const bx = minX * canvas.width;
-                    const by = minY * canvas.height;
-                    const bw = (maxX - minX) * canvas.width;
-                    const bh = (maxY - minY) * canvas.height;
+                    const bx = paddedMinX * canvas.width;
+                    const by = paddedMinY * canvas.height;
+                    const bw = (paddedMaxX - paddedMinX) * canvas.width;
+                    const bh = (paddedMaxY - paddedMinY) * canvas.height;
 
-                    // Draw Brackets
-                    ctx2d.strokeStyle = '#00ffff'; // Cyan
+                    // 2. Draw HUD Brackets — single path, no shadowBlur
+                    ctx2d.lineJoin = 'round';
+                    ctx2d.lineCap = 'round';
+                    ctx2d.strokeStyle = '#00f0ff';
                     ctx2d.lineWidth = 2;
-                    const cornerLen = 20;
+                    const cornerLen = 25;
 
-                    // Top Left
-                    ctx2d.beginPath(); ctx2d.moveTo(bx, by + cornerLen); ctx2d.lineTo(bx, by); ctx2d.lineTo(bx + cornerLen, by); ctx2d.stroke();
-                    // Top Right
-                    ctx2d.beginPath(); ctx2d.moveTo(bx + bw - cornerLen, by); ctx2d.lineTo(bx + bw, by); ctx2d.lineTo(bx + bw, by + cornerLen); ctx2d.stroke();
-                    // Bottom Left
-                    ctx2d.beginPath(); ctx2d.moveTo(bx, by + bh - cornerLen); ctx2d.lineTo(bx, by + bh); ctx2d.lineTo(bx + cornerLen, by + bh); ctx2d.stroke();
-                    // Bottom Right
-                    ctx2d.beginPath(); ctx2d.moveTo(bx + bw - cornerLen, by + bh); ctx2d.lineTo(bx + bw, by + bh); ctx2d.lineTo(bx + bw, by + bh - cornerLen); ctx2d.stroke();
+                    ctx2d.beginPath();
+                    // Top-Left
+                    ctx2d.moveTo(bx, by + cornerLen); ctx2d.lineTo(bx, by); ctx2d.lineTo(bx + cornerLen, by);
+                    // Top-Right
+                    ctx2d.moveTo(bx + bw - cornerLen, by); ctx2d.lineTo(bx + bw, by); ctx2d.lineTo(bx + bw, by + cornerLen);
+                    // Bottom-Right
+                    ctx2d.moveTo(bx + bw, by + bh - cornerLen); ctx2d.lineTo(bx + bw, by + bh); ctx2d.lineTo(bx + bw - cornerLen, by + bh);
+                    // Bottom-Left
+                    ctx2d.moveTo(bx + cornerLen, by + bh); ctx2d.lineTo(bx, by + bh); ctx2d.lineTo(bx, by + bh - cornerLen);
+                    ctx2d.stroke();
 
-                    // Text Label
-                    ctx2d.fillStyle = '#00ffff';
-                    ctx2d.font = '10px monospace';
-                    ctx2d.fillText(`TARGET: ${h.handedness.toUpperCase()}`, bx, by - 5);
-
-
-                    // SKELETON (Dimmer or different visual?)
-                    // Let's keep skeleton but make it subtle? Or matching the theme?
+                    // 3. Draw Skeleton — single batched path
                     ctx2d.lineWidth = 1;
-                    ctx2d.strokeStyle = 'rgba(0, 255, 0, 0.5)'; // Traditional dim green
-
+                    ctx2d.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+                    ctx2d.beginPath();
                     connections.forEach(([start, end]) => {
-                        const p1 = h.landmarks[start];
-                        const p2 = h.landmarks[end];
-                        ctx2d.beginPath();
+                        const p1 = hand.landmarks[start];
+                        const p2 = hand.landmarks[end];
                         ctx2d.moveTo(p1.x * canvas.width, p1.y * canvas.height);
                         ctx2d.lineTo(p2.x * canvas.width, p2.y * canvas.height);
-                        ctx2d.stroke();
                     });
+                    ctx2d.stroke();
 
-                    h.landmarks.forEach(p => {
-                        ctx2d.beginPath();
-                        ctx2d.arc(p.x * canvas.width, p.y * canvas.height, 2, 0, 2 * Math.PI);
-                        ctx2d.fillStyle = 'rgba(0, 255, 255, 0.8)';
-                        ctx2d.fill();
+                    // 4. Landmarks — single batched fill
+                    ctx2d.fillStyle = 'rgba(0, 240, 255, 0.7)';
+                    ctx2d.beginPath();
+                    hand.landmarks.forEach(p => {
+                        ctx2d.moveTo(p.x * canvas.width + 1.5, p.y * canvas.height);
+                        ctx2d.arc(p.x * canvas.width, p.y * canvas.height, 1.5, 0, Math.PI * 2);
                     });
+                    ctx2d.fill();
+
+                    // 5. REPULSOR — simplified (no gradients, no shadowBlur)
+                    const palmIdx = [0, 5, 9, 13, 17];
+                    let palmX = 0, palmY = 0;
+                    for (let pi = 0; pi < 5; pi++) {
+                        palmX += hand.landmarks[palmIdx[pi]].x;
+                        palmY += hand.landmarks[palmIdx[pi]].y;
+                    }
+                    palmX = (palmX / 5) * canvas.width;
+                    palmY = (palmY / 5) * canvas.height;
+
+                    // Outer glow (simple semi-transparent circle)
+                    ctx2d.fillStyle = 'rgba(0, 220, 255, 0.12)';
+                    ctx2d.beginPath();
+                    ctx2d.arc(palmX, palmY, 45, 0, Math.PI * 2);
+                    ctx2d.fill();
+
+                    // Core
+                    ctx2d.fillStyle = 'rgba(200, 255, 255, 0.5)';
+                    ctx2d.beginPath();
+                    ctx2d.arc(palmX, palmY, 12, 0, Math.PI * 2);
+                    ctx2d.fill();
+
+                    // Ring
+                    ctx2d.strokeStyle = 'rgba(0, 240, 255, 0.5)';
+                    ctx2d.lineWidth = 1.5;
+                    ctx2d.beginPath();
+                    ctx2d.arc(palmX, palmY, 16, 0, Math.PI * 2);
+                    ctx2d.stroke();
+
+                    // 6. Label
+                    ctx2d.font = 'bold 14px monospace';
+                    const label = `TARGET [${(hand.confidence * 100).toFixed(0)}%]`;
+                    const textWidth = ctx2d.measureText(label).width;
+
+                    ctx2d.fillStyle = 'rgba(0, 20, 40, 0.6)';
+                    ctx2d.beginPath();
+                    ctx2d.roundRect(bx, by - 26, textWidth + 12, 22, 6);
+                    ctx2d.fill();
+
+                    ctx2d.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+                    ctx2d.lineWidth = 1;
+                    ctx2d.stroke();
+
+                    ctx2d.save();
+                    const textX = bx + 6;
+                    const textY = by - 10;
+                    ctx2d.translate(textX + textWidth / 2, textY);
+                    ctx2d.scale(-1, 1);
+                    ctx2d.fillStyle = '#ffffff';
+                    ctx2d.fillText(label, -textWidth / 2, 0);
+                    ctx2d.restore();
                 });
             }
         };
@@ -392,7 +459,8 @@ declare global {
             cooldownMs?: number,
             cooldownTotalMs?: number,
             lastTechnique?: string,
-            activeTechIds?: string[]
+            activeTechIds?: string[],
+            eyeTarget?: { x: number, y: number }
         };
     }
 }

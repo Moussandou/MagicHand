@@ -5,67 +5,112 @@ function ensureState(ctx: TechniqueContext): Record<string, unknown> {
     return ctx.state;
 }
 
+type Spark = { x: number; y: number; vx: number; vy: number; life: number };
+
 export const SlashTechnique: Technique = {
     id: 'tech_slash',
-    name: 'Dismantle',
+    name: 'Kinetic Blade',
     gestureId: 'gesture_slash',
-    version: '2.0.0',
+    version: '3.1.0',
     start: (ctx: TechniqueContext) => {
         const state = ensureState(ctx);
         state.startTime = ctx.now;
         const w = ctx.overlay2d.canvas.width;
         const h = ctx.overlay2d.canvas.height;
-        const x1 = Math.random() * w;
-        const y1 = Math.random() * h;
-        const x2 = w - x1;
-        const y2 = Math.random() * h;
-        state.coords = { x1, y1, x2, y2 };
+
+        let originX = w / 2;
+        let originY = h / 2;
+        if (ctx.frame.hands.length > 0) {
+            originX = ctx.frame.hands[0].landmarks[9].x * w;
+            originY = ctx.frame.hands[0].landmarks[9].y * h;
+        }
+
+        const angle = -Math.PI / 6 + Math.random() * Math.PI / 3;
+        const bladeLength = Math.max(w, h) * 0.8;
+        state.blade = { originX, originY, angle, bladeLength, sparks: [] as Spark[] };
     },
     update: (ctx: TechniqueContext) => {
         const { overlay2d, now } = ctx;
         const state = ensureState(ctx);
-        const startTime = (state.startTime as number) || now;
-        const coords = (state.coords as { x1: number; y1: number; x2: number; y2: number }) || { x1: 0, y1: 0, x2: 100, y2: 100 };
+        const startTime = state.startTime as number;
+        const blade = state.blade as {
+            originX: number; originY: number;
+            angle: number; bladeLength: number;
+            sparks: Spark[];
+        } | undefined;
+        if (!blade) return;
 
         const elapsed = now - startTime;
-        const DURATION = 800;
-
+        const DURATION = 600;
         if (elapsed > DURATION) return;
 
+        const progress = Math.min(1, elapsed / 180);
+        const fadeOut = elapsed > 400 ? 1 - (elapsed - 400) / 200 : 1;
+
         overlay2d.save();
+        overlay2d.globalAlpha = fadeOut;
 
-        const progress = Math.min(1, elapsed / 200);
-        const { x1, y1, x2, y2 } = coords;
-        const curX = x1 + (x2 - x1) * progress;
-        const curY = y1 + (y2 - y1) * progress;
+        const { originX, originY, angle, bladeLength } = blade;
+        const tipX = originX + Math.cos(angle) * bladeLength * progress;
+        const tipY = originY + Math.sin(angle) * bladeLength * progress;
 
-        // Core black cut line (Sukuna style)
+        // Outer glow (no shadowBlur — use extra thick transparent stroke)
+        overlay2d.strokeStyle = 'rgba(0, 240, 255, 0.15)';
+        overlay2d.lineWidth = 30;
+        overlay2d.lineCap = 'round';
         overlay2d.beginPath();
-        overlay2d.moveTo(x1, y1);
-        overlay2d.lineTo(curX, curY);
-
-        overlay2d.lineWidth = 15;
-        overlay2d.strokeStyle = 'black';
+        overlay2d.moveTo(originX, originY);
+        overlay2d.lineTo(tipX, tipY);
         overlay2d.stroke();
 
-        // Outer glow
-        overlay2d.shadowColor = 'red';
-        overlay2d.shadowBlur = 30;
-        overlay2d.lineWidth = 8;
-        overlay2d.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+        // Mid glow
+        overlay2d.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+        overlay2d.lineWidth = 12;
+        overlay2d.beginPath();
+        overlay2d.moveTo(originX, originY);
+        overlay2d.lineTo(tipX, tipY);
         overlay2d.stroke();
 
-        // Secondary delayed lines (Dismantle = multiple cuts)
-        if (elapsed > 100) {
-            const p2 = Math.min(1, (elapsed - 100) / 200);
+        // Core blade (bright)
+        overlay2d.strokeStyle = 'rgba(220, 255, 255, 0.95)';
+        overlay2d.lineWidth = 4;
+        overlay2d.beginPath();
+        overlay2d.moveTo(originX, originY);
+        overlay2d.lineTo(tipX, tipY);
+        overlay2d.stroke();
+
+        // Sparks — capped at 15 total
+        if (progress < 1 && blade.sparks.length < 15) {
+            blade.sparks.push({
+                x: tipX + (Math.random() - 0.5) * 20,
+                y: tipY + (Math.random() - 0.5) * 20,
+                vx: (Math.random() - 0.5) * 8,
+                vy: (Math.random() - 0.5) * 8,
+                life: 1.0,
+            });
+        }
+
+        overlay2d.fillStyle = 'cyan';
+        for (let i = blade.sparks.length - 1; i >= 0; i--) {
+            const s = blade.sparks[i];
+            s.x += s.vx;
+            s.y += s.vy;
+            s.life -= 0.08;
+            if (s.life <= 0) { blade.sparks.splice(i, 1); continue; }
+            overlay2d.globalAlpha = s.life * fadeOut;
             overlay2d.beginPath();
-            overlay2d.moveTo(x1 + 50, y1 + 50);
-            overlay2d.lineTo(x1 + 50 + (x2 - x1) * p2, y1 + 50 + (y2 - y1) * p2);
-            overlay2d.lineWidth = 8;
-            overlay2d.strokeStyle = 'white';
-            overlay2d.shadowColor = 'red';
-            overlay2d.shadowBlur = 10;
-            overlay2d.stroke();
+            overlay2d.arc(s.x, s.y, 2 + s.life * 2, 0, Math.PI * 2);
+            overlay2d.fill();
+        }
+
+        // Impact flash at tip (simple circle, no gradient)
+        if (progress >= 0.9 && elapsed < 350) {
+            const flashAlpha = Math.max(0, (1 - (elapsed - 180) / 170)) * fadeOut;
+            overlay2d.globalAlpha = flashAlpha;
+            overlay2d.fillStyle = 'rgba(200, 255, 255, 0.5)';
+            overlay2d.beginPath();
+            overlay2d.arc(tipX, tipY, 40, 0, Math.PI * 2);
+            overlay2d.fill();
         }
 
         overlay2d.restore();
@@ -73,6 +118,6 @@ export const SlashTechnique: Technique = {
     stop: (ctx: TechniqueContext) => {
         const state = ensureState(ctx);
         state.startTime = undefined;
-        state.coords = undefined;
+        state.blade = undefined;
     }
 };
