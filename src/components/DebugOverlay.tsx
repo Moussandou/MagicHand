@@ -39,7 +39,7 @@ const BIOS_LINES = [
 
 export default function DebugOverlay() {
     const { activePose } = useAppStore();
-    const { debugMode, reticleEnabled } = useAppStore();
+    const { reticleEnabled } = useAppStore();
     const [stats, setStats] = useState({
         fps: 0, cpu: 0, pose: 'SCANNING', handCount: 0, technique: 'IDLE',
         logs: [] as string[], cooldownMs: 0, cooldownTotalMs: 1500,
@@ -111,7 +111,7 @@ export default function DebugOverlay() {
     const hasActive = stats.activeTechIds.length > 0;
 
     return (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden font-mono select-none z-50 text-cyan-400">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden font-mono select-none z-50 text-cyan-400 text-[10px] sm:text-[13px]">
 
             {/* BIOS overlay */}
             {biosVisible && bootPhase === 2 && (
@@ -162,21 +162,21 @@ export default function DebugOverlay() {
             {/* ═══ TOP SECTION ═══ */}
 
             {/* HUD Badge — top center */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 animate-hud-build" style={{ animationDelay: '0.8s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
-                <div className="px-6 py-1 border border-cyan-400/60 bg-cyan-900/70 backdrop-blur-sm text-[12px] font-bold text-white tracking-[0.4em]"
+            <div className="absolute top-2 sm:top-3 left-1/2 -translate-x-1/2 animate-hud-build" style={{ animationDelay: '0.8s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
+                <div className="px-4 sm:px-6 py-1 border border-cyan-400/60 bg-cyan-900/70 backdrop-blur-sm text-[10px] sm:text-[12px] font-bold text-white tracking-[0.4em]"
                     style={{ clipPath: 'polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%)' }}>
                     HUD
                 </div>
             </div>
 
             {/* Top diagnostic label — left */}
-            <div className="absolute top-4 left-6 animate-hud-build" style={{ animationDelay: '1s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
-                <span className="text-[13px] text-cyan-400 tracking-wider bg-cyan-950/25 backdrop-blur-[1px] px-2 py-0.5 border border-cyan-400/10">MK42_DIAGNOSTIC GFX</span>
+            <div className="absolute top-3 sm:top-4 left-3 sm:left-6 animate-hud-build" style={{ animationDelay: '1s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
+                <span className="text-[10px] sm:text-[13px] text-cyan-400 tracking-wider bg-cyan-950/25 backdrop-blur-[1px] px-1.5 sm:px-2 py-0.5 border border-cyan-400/10">MK42_DIAGNOSTIC GFX</span>
             </div>
 
             {/* Top status bar — right */}
-            <div className="absolute top-4 right-6 animate-hud-build" style={{ animationDelay: '1s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
-                <div className="flex items-center gap-3 text-[13px] bg-cyan-950/25 backdrop-blur-[1px] px-2 py-0.5 border border-cyan-400/10">
+            <div className="absolute top-3 sm:top-4 right-3 sm:right-6 animate-hud-build" style={{ animationDelay: '1s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
+                <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[13px] bg-cyan-950/25 backdrop-blur-[1px] px-1.5 sm:px-2 py-0.5 border border-cyan-400/10">
                     <span className="text-cyan-400">FPS: <span className="text-white">{stats.fps}</span></span>
                     <span className="text-cyan-500">|</span>
                     <span className="text-cyan-400">CPU: <span className="text-white">{stats.cpu.toFixed(1)}ms</span></span>
@@ -188,7 +188,7 @@ export default function DebugOverlay() {
             <HudSeparator top="28px" delay="0.9s" />
 
             {/* ═══ LEFT COLUMN ═══ */}
-            <div className="absolute top-12 left-5 w-64 flex flex-col gap-4">
+            <div className="absolute top-10 sm:top-12 left-2 sm:left-5 w-40 sm:w-64 flex flex-col gap-2 sm:gap-4 hidden sm:flex">
 
                 {/* System Status panel */}
                 <HudPanel delay="1.2s" clipVariant="topRight">
@@ -235,7 +235,7 @@ export default function DebugOverlay() {
             </div>
 
             {/* ═══ RIGHT COLUMN ═══ */}
-            <div className="absolute top-12 right-5 w-64 flex flex-col gap-4">
+            <div className="absolute top-10 sm:top-12 right-2 sm:right-5 w-40 sm:w-64 flex flex-col gap-2 sm:gap-4 hidden sm:flex">
 
                 <HudPanel delay="1.4s" clipVariant="topLeft">
                     <div className="text-[12px] text-cyan-400 tracking-[0.2em] mb-2 border-b border-cyan-400/30 pb-1">ARSENAL</div>
@@ -267,9 +267,9 @@ export default function DebugOverlay() {
             <HudSeparator top="calc(100% - 60px)" delay="1.5s" />
 
             {/* Bottom: active pose */}
-            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-center animate-hud-build" style={{ animationDelay: '2s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
-                <div className={`px-4 py-1 bg-cyan-950/30 backdrop-blur-[2px] border border-cyan-400/10 ${isCombatMode ? 'text-red-400 scale-105' : 'text-cyan-300'}`}>
-                    <div className="text-4xl font-black italic tracking-tighter transition-all duration-300">
+            <div className="absolute bottom-8 sm:bottom-10 left-1/2 -translate-x-1/2 text-center animate-hud-build" style={{ animationDelay: '2s', animationDuration: '0.5s', opacity: 0, animationFillMode: 'forwards' }}>
+                <div className={`px-3 sm:px-4 py-1 bg-cyan-950/30 backdrop-blur-[2px] border border-cyan-400/10 ${isCombatMode ? 'text-red-400 scale-105' : 'text-cyan-300'}`}>
+                    <div className="text-2xl sm:text-4xl font-black italic tracking-tighter transition-all duration-300">
                         {stats.pose}
                     </div>
                 </div>
@@ -281,13 +281,13 @@ export default function DebugOverlay() {
             </div>
 
             {/* Bottom labels */}
-            <div className="absolute bottom-2 left-6 animate-hud-build" style={{ animationDelay: '2.2s', animationDuration: '0.4s', opacity: 0, animationFillMode: 'forwards' }}>
+            <div className="absolute bottom-1 sm:bottom-2 left-3 sm:left-6 animate-hud-build hidden sm:block" style={{ animationDelay: '2.2s', animationDuration: '0.4s', opacity: 0, animationFillMode: 'forwards' }}>
                 <div className="bg-cyan-950/25 backdrop-blur-[1px] px-2 py-1 border border-cyan-400/10">
                     <div className="text-[12px] font-bold text-cyan-300 tracking-wider">SETS</div>
                     <div className="text-[12px] text-cyan-400 tracking-wider">ALPHA • NUMERIC</div>
                 </div>
             </div>
-            <div className="absolute bottom-2 right-6 animate-hud-build" style={{ animationDelay: '2.2s', animationDuration: '0.4s', opacity: 0, animationFillMode: 'forwards' }}>
+            <div className="absolute bottom-1 sm:bottom-2 right-3 sm:right-6 animate-hud-build hidden sm:block" style={{ animationDelay: '2.2s', animationDuration: '0.4s', opacity: 0, animationFillMode: 'forwards' }}>
                 <div className="bg-cyan-950/25 backdrop-blur-[1px] px-2 py-1 border border-cyan-400/10">
                     <div className="text-[12px] text-cyan-400 tracking-wider text-right">NET: STABLE</div>
                     <div className="text-[12px] text-cyan-500 tracking-wider text-right">UPLINK: CONNECTED</div>

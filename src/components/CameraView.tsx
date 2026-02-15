@@ -32,7 +32,7 @@ export default function CameraView() {
     const [poseRecognizer] = useState(() => new PoseRecognizer());
     const [seqRecognizer] = useState(() => new SequenceRecognizer());
 
-    const { setLatestFrame, setLatestFeatures, setActivePose, activeTechniques, debugMode } = useAppStore();
+    const { setLatestFrame, setLatestFeatures, setActivePose, activeTechniques } = useAppStore();
 
     // Debug log buffer (mutable ref so rAF loop can write to it)
     const logBufferRef = useRef<string[]>([]);
@@ -227,7 +227,7 @@ export default function CameraView() {
             engine.update(techCtx);
 
             // DEBUG DRAW
-            if (debugMode) {
+            {
                 const tEnd = performance.now();
                 const frameTime = tEnd - tStart;
 
@@ -379,7 +379,7 @@ export default function CameraView() {
         animationFrameId = requestAnimationFrame(loop);
 
         return () => cancelAnimationFrame(animationFrameId);
-    }, [detectHands, poseRecognizer, seqRecognizer, engine, debugMode]);
+    }, [detectHands, poseRecognizer, seqRecognizer, engine]);
 
     // Poll for debug info for UI
     const [debugInfo, setDebugInfo] = useState({ fps: 0, cpu: 0, pose: 'None' });
@@ -403,12 +403,12 @@ export default function CameraView() {
             }
         };
 
-        if (!debugMode) return;
+        if (true) return; // Polling handled directly by DebugOverlay
         const interval = setInterval(() => {
             if (window._debugInfo) setDebugInfo(window._debugInfo);
         }, 100);
         return () => clearInterval(interval);
-    }, [debugMode, engine]);
+    }, [engine]);
 
 
     return (
@@ -416,8 +416,8 @@ export default function CameraView() {
             {loading && <div className="text-white z-50">Loading Camera...</div>}
             {error && <div className="text-red-500 z-50 bg-black/80 p-4">{error}</div>}
 
-            {/* Debug Info Overlay (Unified) */}
-            {debugMode && <DebugOverlay />}
+            {/* HUD Overlay */}
+            <DebugOverlay />
 
             <video
                 ref={videoRef}
@@ -430,13 +430,6 @@ export default function CameraView() {
                 className="absolute top-0 left-0 w-full h-full object-cover transform scale-x-[-1]"
             />
 
-            {/* UI Overlay */}
-            {/* Title moved to DebugOverlay or kept minimal? kept minimal for non-debug */}
-            {!debugMode && (
-                <div className="absolute top-4 left-4 z-10">
-                    <h1 className="text-white text-2xl font-bold drop-shadow-md">JJK Hand Signs</h1>
-                </div>
-            )}
 
             <UiControls />
         </div>
